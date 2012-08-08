@@ -11,6 +11,9 @@ Build
   Setup SDK environment to build.
   > python setup.py build
 
+  If you met problem on building about strict aliasing, 
+  add -fno-strict-aliasing option to build.
+  
   Only Linux platform is supported now. For other platform, setup.py 
   script should be updated according to SDK of the office.
 
