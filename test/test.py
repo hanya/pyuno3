@@ -1,15 +1,20 @@
 #-*- encoding: utf-8 -*-
 
 import sys
+import os.path
+import platform
 
 major = sys.version_info[0]
-if major == 3:
-    sys.path.append("/home/asuka/misc/pyuno/source/module")
-    sys.path.append("/home/asuka/misc/pyuno/build/lib.linux-i686-3.3")
-else:
-    sys.path.append("/home/asuka/misc/pyuno/build")
-    sys.path.append("/home/asuka/misc/pyuno/build/lib.linux-i686-2.7")
-    #sys.path.append("/home/asuka/local/aoo34/openoffice.org/basis3.4/program")
+minor = sys.version_info[1]
+path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+sys.path.append(os.path.join(path, "source/module"))
+sys.path.append(
+    os.path.join(path, 
+        "build/lib.{}-{}-{}.{}".format(
+            platform.system().lower(), 
+            platform.machine(), 
+            major, minor)))
 
 try:
     import uno
