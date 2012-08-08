@@ -1,0 +1,7 @@
+
+This is Python-UNO bridge forked from Apache OpenOffice rev 1367534. 
+This can be build without hole source tree of the office.
+
+Build
+  Setup SDK environment to build.
+  > python setup.py build
