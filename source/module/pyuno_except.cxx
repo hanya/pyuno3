@@ -142,7 +142,11 @@ static PyRef createClass( const OUString & name, const Runtime &runtime )
     }
     PyRef args( PyTuple_New( 3 ), SAL_NO_ACQUIRE );
 
+#if PY_VERSION_HEX > 0x03000000
+    PyRef pyTypeName = ustring2PyUnicode( name /*.replace( '.', '_' )*/ );
+#else
     PyRef pyTypeName = ustring2PyString( name /*.replace( '.', '_' )*/ );
+#endif
 
     PyRef bases;
     if( base.is() )
@@ -161,16 +165,27 @@ static PyRef createClass( const OUString & name, const Runtime &runtime )
     PyTuple_SetItem( args.get(), 1, bases.getAcquired() );
     PyTuple_SetItem( args.get(), 2, PyDict_New() );
     
+#if PY_VERSION_HEX > 0x03000000
+    PyRef ret(
+        PyObject_CallObject(reinterpret_cast<PyObject *>(&PyType_Type), args.get()), 
+        SAL_NO_ACQUIRE );
+#else
     PyRef ret(
         PyObject_CallObject(reinterpret_cast<PyObject *>(&PyClass_Type) , args.get()),
         SAL_NO_ACQUIRE );
-
+#endif
     // now overwrite ctor and attrib functions
     if( isInterface )
     {
+#if PY_VERSION_HEX > 0x03000000
+        PyObject_SetAttrString(
+            ret.get(), const_cast< char * >("__pyunointerface__"),
+            ustring2PyUnicode(name).get() );
+#else
         PyObject_SetAttrString(
             ret.get(), const_cast< char * >("__pyunointerface__"),
             ustring2PyString(name).get() );
+#endif
     }
     else
     {
@@ -179,13 +194,25 @@ static PyRef createClass( const OUString & name, const Runtime &runtime )
         PyRef getter = getObjectFromUnoModule( runtime,"_uno_struct__getattr__" );
         PyRef repr = getObjectFromUnoModule( runtime,"_uno_struct__repr__" );
         PyRef eq = getObjectFromUnoModule( runtime,"_uno_struct__eq__" );
-        
+#if PY_VERSION_HEX >= 0x03000000
+        PyRef dir = getObjectFromUnoModule( runtime, "_uno_struct__dir__" );
+#endif
+
+#if PY_VERSION_HEX >= 0x03000000
+        PyObject_SetAttrString(
+            ret.get(), const_cast< char * >("__pyunostruct__"),
+            ustring2PyUnicode(name).get() );
+        PyObject_SetAttrString(
+            ret.get(), const_cast< char * >("typeName"),
+            ustring2PyUnicode(name).get() );
+#else
         PyObject_SetAttrString(
             ret.get(), const_cast< char * >("__pyunostruct__"),
             ustring2PyString(name).get() );
         PyObject_SetAttrString(
             ret.get(), const_cast< char * >("typeName"),
             ustring2PyString(name).get() );
+#endif
         PyObject_SetAttrString(
             ret.get(), const_cast< char * >("__init__"), ctor.get() );
         PyObject_SetAttrString(
@@ -198,6 +225,10 @@ static PyRef createClass( const OUString & name, const Runtime &runtime )
             ret.get(), const_cast< char * >("__str__"), repr.get() );
         PyObject_SetAttrString(
             ret.get(), const_cast< char * >("__eq__"), eq.get() );
+#if PY_VERSION_HEX >= 0x03000000
+        PyObject_SetAttrString(
+            ret.get(), const_cast< char * >("__dir__"), dir.get() );
+#endif
     }
     return ret;
 }
@@ -231,9 +262,15 @@ PyRef getClass( const OUString & name , const Runtime &runtime)
                 ret.get(), const_cast< char * >("__pyunointerface__") ) )
             cargo->interfaceSet.insert( ret );
         
+#if PY_VERSION_HEX > 0x03000000
+        PyObject_SetAttrString(
+            ret.get(), const_cast< char * >("__pyunointerface__"),
+            ustring2PyUnicode(name).get() );
+#else
         PyObject_SetAttrString(
             ret.get(), const_cast< char * >("__pyunointerface__"),
             ustring2PyString(name).get() );
+#endif
     }
     else
     {

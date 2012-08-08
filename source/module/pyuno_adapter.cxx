@@ -246,7 +246,11 @@ Any Adapter::invoke( const OUString &aFunctionName,
             buf.appendAscii( "pyuno::Adapater: Method " ).append( aFunctionName );
             buf.appendAscii( " is not implemented at object " );
             PyRef str( PyObject_Repr( mWrappedObject.get() ), SAL_NO_ACQUIRE );
+#if PY_VERSION_HEX >= 0x03030000
+            buf.appendAscii( PyUnicode_AsUTF8( str.get() ));
+#else
             buf.appendAscii( PyString_AsString( str.get() ));
+#endif
             throw IllegalArgumentException( buf.makeStringAndClear(), Reference< XInterface > (),0 );
         }
 

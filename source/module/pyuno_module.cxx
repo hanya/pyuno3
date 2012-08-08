@@ -40,6 +40,9 @@
 #include <com/sun/star/reflection/XIdlReflection.hpp>
 #include <com/sun/star/reflection/XIdlClass.hpp>
 #include <com/sun/star/registry/InvalidRegistryException.hpp>
+#if PY_VERSION_HEX > 0x03010000
+#include <com/sun/star/reflection/XTypeDescription.hpp>
+#endif
 
 using osl::Module;
 
@@ -225,7 +228,11 @@ PyObject * extractOneStringArg( PyObject *args, char const *funcName )
         return NULL;
     }
     PyObject *obj = PyTuple_GetItem( args, 0 );
+#if PY_VERSION_HEX > 0x03000000
+    if( ! PyUnicode_Check(obj))
+#else
     if( !PyString_Check( obj ) && ! PyUnicode_Check(obj))
+#endif
     {
         OStringBuffer buf;
         buf.append( funcName ).append( ": expecting one string argument" );
@@ -248,11 +255,19 @@ static PyObject *createUnoStructHelper(PyObject *, PyObject* args )
             PyObject *structName = PyTuple_GetItem( args,0 );
             PyObject *initializer = PyTuple_GetItem( args ,1 );
             
+#if PY_VERSION_HEX > 0x03000000
+            if( PyUnicode_Check( structName ) )
+#else
             if( PyString_Check( structName ) )
+#endif
             {
                 if( PyTuple_Check( initializer ) )
                 {
+#if PY_VERSION_HEX > 0x03000000
+                    OUString typeName( OUString::createFromAscii(PyUnicode_AsUTF8(structName)));
+#else
                     OUString typeName( OUString::createFromAscii(PyString_AsString(structName)));
+#endif
                     RuntimeCargo *c = runtime.getImpl()->cargo;
                     Reference<XIdlClass> idl_class ( c->xCoreReflection->forName (typeName),UNO_QUERY);
                     if (idl_class.is ())
@@ -287,7 +302,11 @@ static PyObject *createUnoStructHelper(PyObject *, PyObject* args )
                     {
                         OStringBuffer buf;
                         buf.append( "UNO struct " );
+#if PY_VERSION_HEX > 0x03030000
+                        buf.append( PyUnicode_AsUTF8(structName) );
+#else
                         buf.append( PyString_AsString(structName) );
+#endif
                         buf.append( " is unkown" );
                         PyErr_SetString (PyExc_RuntimeError, buf.getStr());
                     }
@@ -462,9 +481,15 @@ static PyObject *getClass( PyObject *, PyObject *args )
     try
     {
         Runtime runtime;
+#if PY_VERSION_HEX > 0x03030000
+        PyRef ret = getClass(
+            OUString( PyUnicode_AsUTF8( obj ), strlen(PyUnicode_AsUTF8( obj )), RTL_TEXTENCODING_UTF8 ), 
+            runtime );
+#else
         PyRef ret = getClass(
             OUString( PyString_AsString( obj), strlen(PyString_AsString(obj)),RTL_TEXTENCODING_ASCII_US),
             runtime );
+#endif
         Py_XINCREF( ret.get() );
         return ret.get();
     }
@@ -479,6 +504,45 @@ static PyObject *getClass( PyObject *, PyObject *args )
     return NULL;
 }
 
+#if PY_VERSION_HEX > 0x3010000
+static PyObject *hasModule( PyObject *, PyObject *args )
+{
+    PyObject *ret = 0;
+    try
+    {
+        char *name;
+        if (PyArg_ParseTuple (args, const_cast< char * >("s"), &name))
+        {
+            OUString typeName ( OUString::createFromAscii( name ) );
+            Runtime runtime;
+            Any a = runtime.getImpl()->cargo->xTdMgr->getByHierarchicalName(typeName);
+            Reference< com::sun::star::reflection::XTypeDescription > xTypeDescription(a, UNO_QUERY);
+            if ( xTypeDescription.is() )
+            {
+                com::sun::star::uno::TypeClass typeClass = xTypeDescription->getTypeClass();
+                ret = PyLong_FromLong( 
+                    typeClass == com::sun::star::uno::TypeClass_MODULE || 
+                    typeClass == com::sun::star::uno::TypeClass_CONSTANTS || 
+                    typeClass == com::sun::star::uno::TypeClass_ENUM );
+            }
+        }
+    }
+    catch( NoSuchElementException & e )
+    {
+        ret = PyLong_FromLong( 0 );
+    }
+    catch( com::sun::star::lang::IllegalArgumentException & e)
+    {
+        raisePyExceptionWithAny( makeAny( e ) );
+    }
+    catch( RuntimeException & e )
+    {
+        raisePyExceptionWithAny( makeAny(e) );
+    }
+    return ret;
+}
+#endif
+
 static PyObject *isInterface( PyObject *, PyObject *args )
 {
 
@@ -486,14 +550,13 @@ static PyObject *isInterface( PyObject *, PyObject *args )
     {
         PyObject *obj = PyTuple_GetItem( args, 0 );
         Runtime r;
-#if PY_MAJOR_VERSION >= 3
+#if PY_VERSION_HEX > 0x03000000
         return PyLong_FromLong( isInterfaceClass( r, obj ) );
 #else
         return PyInt_FromLong( isInterfaceClass( r, obj ) );
-
 #endif
     }
-#if PY_MAJOR_VERSION >= 3
+#if PY_VERSION_HEX > 0x03000000
     return PyLong_FromLong( 0 );
 #else
     return PyInt_FromLong( 0 );
@@ -603,9 +666,17 @@ static PyObject * invoke ( PyObject *, PyObject * args )
     {
         PyObject *object = PyTuple_GetItem( args, 0 );
 
+#if PY_VERSION_HEX > 0x03000000
+        if( PyUnicode_Check( PyTuple_GetItem( args, 1 ) ) )
+#else
         if( PyString_Check( PyTuple_GetItem( args, 1 ) ) )
+#endif
         {
+#if PY_VERSION_HEX > 0x03030000
+            const char *name = PyUnicode_AsUTF8( PyTuple_GetItem( args, 1 ) );
+#else
             const char *name = PyString_AsString( PyTuple_GetItem( args, 1 ) );
+#endif
             if( PyTuple_Check( PyTuple_GetItem( args , 2 )))
             {
                 ret = PyUNO_invoke( object, name , PyTuple_GetItem( args, 2 ) );
@@ -614,7 +685,11 @@ static PyObject * invoke ( PyObject *, PyObject * args )
             {
                 OStringBuffer buf;
                 buf.append( "uno.invoke expects a tuple as 3rd argument, got " );
+#if PY_VERSION_HEX > 0x03030000
+                buf.append( PyUnicode_AsUTF8( PyObject_Str( PyTuple_GetItem( args, 2 ) ) ) );
+#else
                 buf.append( PyString_AsString( PyObject_Str( PyTuple_GetItem( args, 2) ) ) );
+#endif
                 PyErr_SetString( PyExc_RuntimeError, buf.makeStringAndClear() );
             }
         }
@@ -622,7 +697,11 @@ static PyObject * invoke ( PyObject *, PyObject * args )
         {
             OStringBuffer buf;
             buf.append( "uno.invoke expected a string as 2nd argument, got " );
+#if PY_VERSION_HEX > 0x03030000
+            buf.append( PyUnicode_AsUTF8( PyObject_Str( PyTuple_GetItem( args, 1 ) ) ) );
+#else
             buf.append( PyString_AsString( PyObject_Str( PyTuple_GetItem( args, 1) ) ) );
+#endif
             PyErr_SetString( PyExc_RuntimeError, buf.makeStringAndClear() );
         }
     }
@@ -672,7 +751,11 @@ static PyObject *setCurrentContext( PyObject *, PyObject * args )
             {
                 OStringBuffer buf;
                 buf.append( "uno.setCurrentContext expects an XComponentContext implementation, got " );
+#if PY_VERSION_HEX >= 0x03030000
+                buf.append( PyUnicode_AsUTF8( PyObject_Str( PyTuple_GetItem( args, 0) ) ) );
+#else
                 buf.append( PyString_AsString( PyObject_Str( PyTuple_GetItem( args, 0) ) ) );
+#endif
                 PyErr_SetString( PyExc_RuntimeError, buf.makeStringAndClear() );
             }
         }
@@ -692,6 +775,37 @@ static PyObject *setCurrentContext( PyObject *, PyObject * args )
 
 }
 
+#if PY_VERSION_HEX > 0x03000000
+struct PyMethodDef PyUNOModule_methods [] =
+{
+    {const_cast< char * >("getComponentContext"), getComponentContext, METH_NOARGS, NULL}, 
+    {const_cast< char * >("_createUnoStructHelper"), createUnoStructHelper, METH_VARARGS, NULL},
+    {const_cast< char * >("getTypeByName"), getTypeByName, METH_VARARGS, NULL},
+    {const_cast< char * >("getConstantByName"), getConstantByName, METH_VARARGS, NULL},
+    {const_cast< char * >("getClass"), getClass, METH_VARARGS, NULL},
+    {const_cast< char * >("checkEnum"), checkEnum, METH_VARARGS, NULL},
+    {const_cast< char * >("checkType"), checkType, METH_VARARGS, NULL},
+    {const_cast< char * >("generateUuid"), generateUuid, METH_NOARGS, NULL},
+    {const_cast< char * >("systemPathToFileUrl"), systemPathToFileUrl, METH_VARARGS, NULL},
+    {const_cast< char * >("fileUrlToSystemPath"), fileUrlToSystemPath, METH_VARARGS, NULL},
+    {const_cast< char * >("absolutize"), absolutize, METH_VARARGS, NULL},
+    {const_cast< char * >("isInterface"), isInterface, METH_VARARGS, NULL},
+    {const_cast< char * >("invoke"), invoke, METH_VARARGS, NULL},
+    {const_cast< char * >("setCurrentContext"), setCurrentContext, METH_VARARGS, NULL},
+    {const_cast< char * >("getCurrentContext"), getCurrentContext, METH_VARARGS, NULL},
+    {const_cast< char * >("hasModule"), hasModule, METH_VARARGS, NULL},
+    {NULL, NULL, 0, NULL}
+};
+
+static struct PyModuleDef PyUNOModule = 
+{
+    PyModuleDef_HEAD_INIT, 
+    const_cast< char * >("pyuno"), 
+    NULL, 
+    -1, 
+    PyUNOModule_methods
+};
+#else
 struct PyMethodDef PyUNOModule_methods [] =
 {
     {const_cast< char * >("getComponentContext"), getComponentContext, 1, NULL}, 
@@ -711,12 +825,30 @@ struct PyMethodDef PyUNOModule_methods [] =
     {const_cast< char * >("getCurrentContext"),getCurrentContext,1, NULL},
     {NULL, NULL, 0, NULL}
 };
-
+#endif
 }
 
+#if PY_VERSION_HEX > 0x03000000
+extern "C" PyMODINIT_FUNC PyInit_pyuno(void)
+{
+    PyObject *m;
+    
+    PyEval_InitThreads();
+    
+    m = PyModule_Create(&PyUNOModule);
+    if (m == NULL)
+        return NULL;
+    
+    if (PyType_Ready((PyTypeObject *)getPyUnoClass().get()))
+        return NULL;
+    return m;
+}
+#else
 extern "C" PY_DLLEXPORT void initpyuno()
 {
     // noop when called already, otherwise needed to allow multiple threads
     PyEval_InitThreads();
     Py_InitModule (const_cast< char * >("pyuno"), PyUNOModule_methods);
 }
+#endif
+

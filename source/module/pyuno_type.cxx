@@ -143,6 +143,7 @@ PyRef getAnyClass( const Runtime & r )
 sal_Unicode PyChar2Unicode( PyObject *obj ) throw ( RuntimeException )
 {
     PyRef value( PyObject_GetAttrString( obj, const_cast< char * >("value") ), SAL_NO_ACQUIRE );
+
     if( ! PyUnicode_Check( value.get() ) )
     {
         throw RuntimeException(
@@ -157,7 +158,12 @@ sal_Unicode PyChar2Unicode( PyObject *obj ) throw ( RuntimeException )
             Reference< XInterface > () );
     }
 
+#if PY_VERSION_HEX >= 0x03030000
+    // Out of BMP lost its data
+    sal_Unicode c = (sal_Unicode)PyUnicode_ReadChar( value.get(), 0 );
+#else
     sal_Unicode c = (sal_Unicode)PyUnicode_AsUnicode( value.get() )[0];
+#endif
     return c;
 }
 
@@ -166,15 +172,28 @@ Any PyEnum2Enum( PyObject *obj ) throw ( RuntimeException )
     Any ret;
     PyRef typeName( PyObject_GetAttrString( obj,const_cast< char * >("typeName") ), SAL_NO_ACQUIRE);
     PyRef value( PyObject_GetAttrString( obj, const_cast< char * >("value") ), SAL_NO_ACQUIRE);
+#if PY_VERSION_HEX > 0x03000000
+    if( !PyUnicode_Check( typeName.get() ) || ! PyUnicode_Check( value.get() ) )
+#else
     if( !PyString_Check( typeName.get() ) || ! PyString_Check( value.get() ) )
+#endif
     {
         throw RuntimeException(
             USTR_ASCII( "attributes typeName and/or value of uno.Enum are not strings" ),
             Reference< XInterface > () );
     }
     
+#if PY_VERSION_HEX >= 0x03030000
+    OUString strTypeName( OUString::createFromAscii( PyUnicode_AsUTF8( typeName.get() ) ) );
+#else
     OUString strTypeName( OUString::createFromAscii( PyString_AsString( typeName.get() ) ) );
+#endif
+    
+#if PY_VERSION_HEX >= 0x03030000
+    char *stringValue = PyUnicode_AsUTF8( value.get() );
+#else
     char *stringValue = PyString_AsString( value.get() );
+#endif
 
     TypeDescription desc( strTypeName );
     if( desc.is() )
@@ -204,7 +223,11 @@ Any PyEnum2Enum( PyObject *obj ) throw ( RuntimeException )
         {
             OUStringBuffer buf;
             buf.appendAscii( "value " ).appendAscii( stringValue ).appendAscii( "is unknown in enum " );
+#if PY_VERSION_HEX >= 0x03030000
+            buf.appendAscii( PyUnicode_AsUTF8( typeName.get() ) );
+#else
             buf.appendAscii( PyString_AsString( typeName.get() ) );
+#endif
             throw RuntimeException( buf.makeStringAndClear(), Reference<XInterface> () );
         }
         ret = Any( &pEnumDesc->pEnumValues[i], desc.get()->pWeakRef );
@@ -212,7 +235,11 @@ Any PyEnum2Enum( PyObject *obj ) throw ( RuntimeException )
     else
     {
         OUStringBuffer buf;
+#if PY_VERSION_HEX >= 0x03030000
+        buf.appendAscii( "enum " ).appendAscii( PyUnicode_AsUTF8(typeName.get()) ).appendAscii( " is unknown" );
+#else
         buf.appendAscii( "enum " ).appendAscii( PyString_AsString(typeName.get()) ).appendAscii( " is unknown" );
+#endif
         throw RuntimeException( buf.makeStringAndClear(), Reference< XInterface>  () );
     }
     return ret;
@@ -222,7 +249,11 @@ Any PyEnum2Enum( PyObject *obj ) throw ( RuntimeException )
 Type PyType2Type( PyObject * o ) throw(RuntimeException )
 {
     PyRef pyName( PyObject_GetAttrString( o, const_cast< char * >("typeName") ), SAL_NO_ACQUIRE);
+#if PY_VERSION_HEX > 0x03000000
+    if( !PyUnicode_Check( pyName.get() ) )
+#else
     if( !PyString_Check( pyName.get() ) )
+#endif
     {
         throw RuntimeException(
             USTR_ASCII( "type object does not have typeName property" ),
@@ -232,7 +263,11 @@ Type PyType2Type( PyObject * o ) throw(RuntimeException )
     PyRef pyTC( PyObject_GetAttrString( o, const_cast< char * >("typeClass") ), SAL_NO_ACQUIRE );
     Any enumValue = PyEnum2Enum( pyTC.get() );
 
+#if PY_VERSION_HEX >= 0x03030000
+    OUString name( OUString::createFromAscii( PyUnicode_AsUTF8( pyName.get() ) ) );
+#else
     OUString name( OUString::createFromAscii( PyString_AsString( pyName.get() ) ) );
+#endif
     TypeDescription desc( name );
     if( ! desc.is() )
     {
@@ -276,10 +311,17 @@ PyObject *importToGlobal(PyObject *str, PyObject *dict, PyObject *target)
                 Py_INCREF( typesModule.get() );
                 PyDict_SetItemString( dict, "unotypes" , typesModule.get() );
             }
+#if PY_VERSION_HEX >= 0x03030000
+            PyModule_AddObject(
+                typesModule.get(),
+                PyUnicode_AsUTF8( target ),
+                PyUNO_Type_new( PyUnicode_AsUTF8(str),tc,runtime ) );
+#else
             PyModule_AddObject(
                 typesModule.get(),
                 PyString_AsString( target ),
                 PyUNO_Type_new( PyString_AsString(str),tc,runtime ) );
+#endif
 
             if( com::sun::star::uno::TypeClass_EXCEPTION == tc ||
                 com::sun::star::uno::TypeClass_STRUCT    == tc )
@@ -296,9 +338,15 @@ PyObject *importToGlobal(PyObject *str, PyObject *dict, PyObject *target)
                 {
                     OString enumElementName(
                         OUStringToOString( pDesc->ppEnumNames[i], RTL_TEXTENCODING_ASCII_US) );
+#if PY_VERSION_HEX >= 0x03030000
+                    PyDict_SetItemString(
+                        dict, (char*)enumElementName.getStr(),
+                        PyUNO_Enum_new(PyUnicode_AsUTF8(str) , enumElementName.getStr(), runtime ) );
+#else
                     PyDict_SetItemString(
                         dict, (char*)enumElementName.getStr(),
                         PyUNO_Enum_new(PyString_AsString(str) , enumElementName.getStr(), runtime ) );
+#endif
                 }
             }
             Py_INCREF( Py_None );
@@ -319,7 +367,11 @@ PyObject *importToGlobal(PyObject *str, PyObject *dict, PyObject *target)
                 else
                 {
                     OStringBuffer buf;
+#if PY_VERSION_HEX >= 0x03030000
+                    buf.append( "constant " ).append(PyUnicode_AsUTF8(str)).append(  " unknown" );
+#else
                     buf.append( "constant " ).append(PyString_AsString(str)).append(  " unknown" );
+#endif
                     PyErr_SetString( PyExc_RuntimeError, buf.getStr() );
                 }
             }
@@ -379,8 +431,13 @@ static PyObject* callCtor( const Runtime &r , const char * clazz, const PyRef & 
 PyObject *PyUNO_Enum_new( const char *enumBase, const char *enumValue, const Runtime &r )
 {
     PyRef args( PyTuple_New( 2 ), SAL_NO_ACQUIRE );
+#if PY_VERSION_HEX > 0x03000000
+    PyTuple_SetItem( args.get() , 0 , PyUnicode_FromString( enumBase ) );
+    PyTuple_SetItem( args.get() , 1 , PyUnicode_FromString( enumValue ) );
+#else
     PyTuple_SetItem( args.get() , 0 , PyString_FromString( enumBase ) );
     PyTuple_SetItem( args.get() , 1 , PyString_FromString( enumValue ) );
+#endif
 
     return callCtor( r, "Enum" , args );
 }
@@ -391,7 +448,11 @@ PyObject* PyUNO_Type_new (const char *typeName , TypeClass t , const Runtime &r 
     // retrieve type object
     PyRef args( PyTuple_New( 2 ), SAL_NO_ACQUIRE );
 
+#if PY_VERSION_HEX > 0x03000000
+    PyTuple_SetItem( args.get() , 0 , PyUnicode_FromString( typeName ) );
+#else
     PyTuple_SetItem( args.get() , 0 , PyString_FromString( typeName ) );
+#endif
     PyObject *typeClass = PyUNO_Enum_new( "com.sun.star.uno.TypeClass" , typeClassToString(t), r );
     if( ! typeClass )
         return NULL;
@@ -405,10 +466,16 @@ PyObject* PyUNO_char_new ( sal_Unicode val , const Runtime &r )
     // retrieve type object
     PyRef args( PyTuple_New( 1 ), SAL_NO_ACQUIRE );
 
+#if PY_VERSION_HEX >= 0x03030000
+    Py_UCS2 u[1];
+    u[0] = val;
+    PyTuple_SetItem( args.get(), 0, PyUnicode_FromKindAndData( PyUnicode_2BYTE_KIND, u, 1 ) );
+#else
     Py_UNICODE u[2];
     u[0] = val;
     u[1] = 0;
     PyTuple_SetItem( args.get() , 0 , PyUnicode_FromUnicode( u ,1) );
+#endif
 
     return callCtor( r, "Char" , args );
 }
@@ -416,9 +483,15 @@ PyObject* PyUNO_char_new ( sal_Unicode val , const Runtime &r )
 PyObject *PyUNO_ByteSequence_new(
     const com::sun::star::uno::Sequence< sal_Int8 > &byteSequence, const Runtime &r )
 {
+#if PY_VERSION_HEX > 0x03000000
+    PyRef str(
+        PyBytes_FromStringAndSize( (char*)byteSequence.getConstArray(), byteSequence.getLength()),
+        SAL_NO_ACQUIRE );
+#else
     PyRef str(
         PyString_FromStringAndSize( (char*)byteSequence.getConstArray(), byteSequence.getLength()),
         SAL_NO_ACQUIRE );
+#endif
     PyRef args( PyTuple_New( 1 ), SAL_NO_ACQUIRE );
     PyTuple_SetItem( args.get() , 0 , str.getAcquired() );
     return callCtor( r, "ByteSequence" , args );

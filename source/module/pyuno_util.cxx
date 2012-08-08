@@ -61,6 +61,10 @@ namespace pyuno
 PyRef ustring2PyUnicode( const OUString & str )
 {
     PyRef ret;
+#if PY_VERSION_HEX >= 0x03030000
+    OString sUtf8(OUStringToOString(str, RTL_TEXTENCODING_UTF8));
+    ret = PyRef( PyUnicode_DecodeUTF8( sUtf8.getStr(), sUtf8.getLength(), NULL) , SAL_NO_ACQUIRE );
+#else
 #if Py_UNICODE_SIZE == 2
     // YD force conversion since python/2 uses wchar_t
     ret = PyRef( PyUnicode_FromUnicode( (const Py_UNICODE*)str.getStr(), str.getLength() ), SAL_NO_ACQUIRE );
@@ -68,20 +72,29 @@ PyRef ustring2PyUnicode( const OUString & str )
     OString sUtf8(OUStringToOString(str, RTL_TEXTENCODING_UTF8));
     ret = PyRef( PyUnicode_DecodeUTF8( sUtf8.getStr(), sUtf8.getLength(), NULL) , SAL_NO_ACQUIRE );
 #endif
+#endif
+
     return ret;
 }
 
+#if PY_VERSION_HEX < 0x03000000
 PyRef ustring2PyString( const OUString &str )
 {
     OString o = OUStringToOString( str, osl_getThreadTextEncoding() );
     return PyRef( PyString_FromString( o.getStr() ), SAL_NO_ACQUIRE );
 }
+#endif
 
 OUString pyString2ustring( PyObject *pystr )
 {
     OUString ret;
     if( PyUnicode_Check( pystr ) )
     {
+#if PY_VERSION_HEX >= 0x03030000
+        Py_ssize_t size;
+        char *pUtf8 = PyUnicode_AsUTF8AndSize(pystr, &size);
+        ret = OUString(pUtf8, size, RTL_TEXTENCODING_UTF8);
+#else
 #if Py_UNICODE_SIZE == 2
 	ret = OUString( (sal_Unicode * ) PyUnicode_AS_UNICODE( pystr ) );
 #else
@@ -89,12 +102,15 @@ OUString pyString2ustring( PyObject *pystr )
 	ret = OUString(PyString_AsString(pUtf8), PyString_Size(pUtf8), RTL_TEXTENCODING_UTF8);
 	Py_DECREF(pUtf8);
 #endif
+#endif
     }
+#if PY_VERSION_HEX < 0x03030000
     else
     {
         char *name = PyString_AsString(pystr );
         ret = OUString( name, strlen(name), osl_getThreadTextEncoding() );
     }
+#endif
     return ret;
 }
 

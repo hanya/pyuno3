@@ -191,7 +191,12 @@ PyObject* PyUNO_callable_call (PyObject* self, PyObject* args, PyObject*)
 
 static PyTypeObject PyUNO_callable_Type =
 {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+#if PY_VERSION_HEX >= 0x03000000
+    PyVarObject_HEAD_INIT (&PyType_Type, 0)
+#else
+    PyObject_HEAD_INIT (&PyType_Type)
+    0, /* ob_size */
+#endif
     const_cast< char * >("PyUNO_callable"),
     sizeof (PyUNO_callable),
     0,
@@ -199,7 +204,11 @@ static PyTypeObject PyUNO_callable_Type =
     (printfunc) 0,
     (getattrfunc) 0,
     (setattrfunc) 0,
+#if PY_VERSION_HEX >= 0x03000000
+    0, /* tp_reserved */
+#else
     (cmpfunc) 0,
+#endif
     (reprfunc) 0,
     0,
     0,

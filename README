@@ -4,7 +4,8 @@ This can be build without hole source tree of the office.
 
 Requirements
   - Apache OpenOffice 3.4? and its SDK.
-  - Python 2.7 and its include files.
+  - Python 3.3 and its include files.
+  Python 3.0 to 3.2 are not supported yet.
 
 Build
   Setup SDK environment to build.
@@ -23,4 +24,12 @@ Build
     export URE_BOOTSTRAP=vnd.sun.star.pathname:/opt/openoffice.org3/program/fundamentalrc
   - LD_LIBRARY_PATH or PATH
     specifies basis3.X/program and ure/lib to be found required libraries.
+
+Difference between Python 2 and Python 3 on PyUNO
+  Most of differences are caused by Python itself.
+  - String must be unicode known as normal str.
+  - There is not int type anymore.
+  - uno.ByteSequence must be initialized with bytes, bytearray or 
+    ByteSequence instance.
+  - No __members__ and __methods__ on pyuno instance.
 

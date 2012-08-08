@@ -124,7 +124,9 @@ typedef struct
 } PyUNO;
 
 PyRef ustring2PyUnicode( const rtl::OUString &source );
+#if PY_VERSION_HEX < 0x03000000
 PyRef ustring2PyString( const ::rtl::OUString & source );
+#endif
 rtl::OUString pyString2ustring( PyObject *str );
 
     
@@ -161,7 +163,7 @@ PyRef getEnumClass( const Runtime &);
 PyRef getBoolClass( const Runtime &);
 PyRef getCharClass( const Runtime &);
 PyRef getByteSequenceClass( const Runtime & );
-PyRef getPyUnoClass( const Runtime &);
+PyRef getPyUnoClass();
 PyRef getClass( const rtl::OUString & name , const Runtime & runtime );
 PyRef getAnyClass( const Runtime &);
 PyObject *PyUNO_invoke( PyObject *object, const char *name , PyObject *args );

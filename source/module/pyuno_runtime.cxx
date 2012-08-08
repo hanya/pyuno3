@@ -65,7 +65,12 @@ namespace pyuno
 
 static PyTypeObject RuntimeImpl_Type =
 {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0)
+#if PY_VERSION_HEX >= 0x03000000
+    PyVarObject_HEAD_INIT (&PyType_Type, 0)
+#else
+    PyObject_HEAD_INIT (&PyType_Type)
+    0,
+#endif
     const_cast< char * >("pyuno_runtime"),
     sizeof (RuntimeImpl),
     0,
@@ -73,7 +78,11 @@ static PyTypeObject RuntimeImpl_Type =
     (printfunc) 0,
     (getattrfunc) 0,
     (setattrfunc) 0,
+#if PY_VERSION_HEX >= 0x03000000
+    0, /* tp_reserved */
+#else
     (cmpfunc) 0,
+#endif
     (reprfunc) 0,
     0,
     0,
@@ -154,8 +163,16 @@ static PyRef importUnoModule( ) throw ( RuntimeException )
         OUStringBuffer buf;
         buf.appendAscii( "python object raised an unknown exception (" );
         PyRef valueRep( PyObject_Repr( excValue.get() ), SAL_NO_ACQUIRE );
+#if PY_VERSION_HEX >= 0x03030000
+        Py_ssize_t size;
+        char *rep = PyUnicode_AsUTF8AndSize( valueRep.get(), &size );
+        buf.append( OUString( rep, size, RTL_TEXTENCODING_UTF8 ) ).appendAscii( ", traceback follows\n" );
+        rep = PyUnicode_AsUTF8AndSize( str.get(), &size );
+        buf.append( OUString( rep, size, RTL_TEXTENCODING_UTF8 ) );
+#else
         buf.appendAscii( PyString_AsString( valueRep.get())).appendAscii( ", traceback follows\n" );
         buf.appendAscii( PyString_AsString( str.get() ) );
+#endif
         throw RuntimeException( buf.makeStringAndClear(), Reference< XInterface > () );
     }
     PyRef dict( PyModule_GetDict( module.get() ) );
@@ -437,7 +454,7 @@ PyRef Runtime::any2PyObject (const Any &a ) const
 	{
         sal_Int32 l = 0;
         a >>= l;
-#if PY_MAJOR_VERSION >= 3
+#if PY_VERSION_HEX > 0x03000000
         return PyRef( PyLong_FromLong (l), SAL_NO_ACQUIRE );
 #else
         return PyRef( PyInt_FromLong (l), SAL_NO_ACQUIRE );
@@ -544,7 +561,11 @@ PyRef Runtime::any2PyObject (const Any &a ) const
             // assuming that the Message is always the first member, wuuuu
             void *pData = (void*)a.getValue();
             OUString message = *(OUString * )pData;
+#if PY_VERSION_HEX > 0x03000000
+            PyRef pymsg = ustring2PyUnicode( message );
+#else
             PyRef pymsg = ustring2PyString( message );
+#endif
             PyTuple_SetItem( args.get(), 0 , pymsg.getAcquired() );
             // the exception base functions want to have an "args" tuple,
             // which contains the message
@@ -662,6 +683,7 @@ Any Runtime::pyObject2Any ( const PyRef & source, enum ConversionMode mode ) con
     {
 
     }
+#if PY_VERSION_HEX < 0x03000000
     else if (PyInt_Check (o))
     {
         if( o == Py_True )
@@ -693,6 +715,7 @@ Any Runtime::pyObject2Any ( const PyRef & source, enum ConversionMode mode ) con
             }
         }
     }
+#endif
     else if (PyLong_Check (o))
     {
         sal_Int64 l = (sal_Int64)PyLong_AsLong (o);
@@ -722,8 +745,10 @@ Any Runtime::pyObject2Any ( const PyRef & source, enum ConversionMode mode ) con
         double d = PyFloat_AsDouble (o);
         a <<= d;
     }
+#if PY_VERSION_HEX < 0x03000000
     else if (PyString_Check (o))
 	a <<= pyString2ustring(o);
+#endif
     else if( PyUnicode_Check( o ) )
 	a <<= pyString2ustring(o);
     else if (PyTuple_Check (o))
@@ -743,14 +768,27 @@ Any Runtime::pyObject2Any ( const PyRef & source, enum ConversionMode mode ) con
         {
             PyRef str(PyObject_GetAttrString( o , const_cast< char * >("value") ),SAL_NO_ACQUIRE);
             Sequence< sal_Int8 > seq;
+#if PY_VERSION_HEX > 0x03000000
+            if ( PyBytes_Check( str.get() ) )
+            {
+                seq = Sequence< sal_Int8 >(
+                    (sal_Int8 *) PyBytes_AS_STRING(str.get()), PyBytes_GET_SIZE(str.get()));
+            }
+            else if ( PyByteArray_Check( str.get() ) )
+            {
+                seq = Sequence< sal_Int8 >(
+                    (sal_Int8 *) PyByteArray_AS_STRING(str.get()), PyByteArray_GET_SIZE(str.get()));
+            }
+#else
             if( PyString_Check( str.get() ) )
             {
                 seq = Sequence<sal_Int8 > (
                     (sal_Int8*) PyString_AsString(str.get()), PyString_Size(str.get()));
             }
+#endif
             a <<= seq;                                                          
         }
-        else
+        else 
         if( PyObject_IsInstance( o, getTypeClass( runtime ).get() ) )
         {
             Type t = PyType2Type( o );
@@ -774,7 +812,7 @@ Any Runtime::pyObject2Any ( const PyRef & source, enum ConversionMode mode ) con
                     Reference< XInterface > () );
             }
         }
-        else if( PyObject_IsInstance( o, getPyUnoClass( runtime ).get() ) )
+        else if( PyObject_IsInstance( o, getPyUnoClass().get() ) )
         {
             PyUNO* o_pi;
             o_pi = (PyUNO*) o;
@@ -879,7 +917,11 @@ Any Runtime::pyObject2Any ( const PyRef & source, enum ConversionMode mode ) con
                 OUStringBuffer buf;
                 buf.appendAscii( "Couldn't convert " );
                 PyRef reprString( PyObject_Str( o ) , SAL_NO_ACQUIRE );
+#if PY_VERSION_HEX >= 0x03030000
+                buf.appendAscii( PyUnicode_AsUTF8( reprString.get() ) );
+#else
                 buf.appendAscii( PyString_AsString( reprString.get() ) );
+#endif
                 buf.appendAscii( " to a UNO type" );
                 throw RuntimeException( buf.makeStringAndClear(), Reference< XInterface > () );
             }
@@ -908,23 +950,39 @@ Any Runtime::extractUnoException( const PyRef & excType, const PyRef &excValue, 
             }
             else
             {
+#if PY_VERSION_HEX >= 0x03000000
+                str = PyRef(
+                    PyUnicode_FromString( "Couldn't find uno._uno_extract_printable_stacktrace" ),
+                    SAL_NO_ACQUIRE );
+#else
                 str = PyRef(
                     PyString_FromString( "Couldn't find uno._uno_extract_printable_stacktrace" ),
                     SAL_NO_ACQUIRE );
+#endif
             }
         }
         else
         {
+#if PY_VERSION_HEX >= 0x03000000
+            str = PyRef(
+                PyUnicode_FromString( "Couldn't find uno.py, no stacktrace available" ),
+                SAL_NO_ACQUIRE );
+#else
             str = PyRef(
                 PyString_FromString( "Couldn't find uno.py, no stacktrace available" ),
                 SAL_NO_ACQUIRE );
+#endif
         }
 
     }
     else
     {
         // it may occur, that no traceback is given (e.g. only native code below)
+#if PY_VERSION_HEX >= 0x03000000
+        str = PyRef( PyUnicode_FromString( "no traceback available" ), SAL_NO_ACQUIRE);
+#else
         str = PyRef( PyString_FromString( "no traceback available" ), SAL_NO_ACQUIRE);
+#endif
     }
     
     if( isInstanceOfStructOrException( excValue.get() ) )
@@ -937,7 +995,11 @@ Any Runtime::extractUnoException( const PyRef & excType, const PyRef &excValue, 
         PyRef typeName( PyObject_Str( excType.get() ), SAL_NO_ACQUIRE );
         if( typeName.is() )
         {
+#if PY_VERSION_HEX >= 0x03030000
+            buf.appendAscii( PyUnicode_AsUTF8( typeName.get() ) );
+#else
             buf.appendAscii( PyString_AsString( typeName.get() ) );
+#endif
         }
         else
         {
@@ -947,7 +1009,11 @@ Any Runtime::extractUnoException( const PyRef & excType, const PyRef &excValue, 
         PyRef valueRep( PyObject_Str( excValue.get() ), SAL_NO_ACQUIRE );
         if( valueRep.is() )
         {
+#if PY_VERSION_HEX >= 0x03030000
+            buf.appendAscii( PyUnicode_AsUTF8( valueRep.get()));
+#else
             buf.appendAscii( PyString_AsString( valueRep.get()));
+#endif
         }
         else
         {
@@ -956,7 +1022,11 @@ Any Runtime::extractUnoException( const PyRef & excType, const PyRef &excValue, 
         buf.appendAscii( ", traceback follows\n" );
         if( str.is() )
         {
+#if PY_VERSION_HEX >= 0x03030000
+            buf.appendAscii( PyUnicode_AsUTF8( str.get() ) );
+#else
             buf.appendAscii( PyString_AsString( str.get() ) );
+#endif
         }
         else
         {
