@@ -36,3 +36,27 @@ Difference between Python 2 and Python 3 on PyUNO
     ByteSequence instance.
   - No __members__ and __methods__ on pyuno instance.
 
+Replaced import hook
+  PyUNO uses custom import function to import UNO values in uno.py. 
+  It has some problems when other module uses the same way. 
+  Import hook is introduced by importlib module on Python 3.1. 
+  We should be use to import UNO values.
+  
+  hasModule() and getModuleElementNames() methods are introduced 
+  to get required information about UNO modules in pyuno.
+  See uno.py more detail.
+  
+  New import hook allows to import module defined in IDL as Python module. 
+  For example, com.sun.star.beans module can be imported as follows: 
+    import com.sun.star.beans
+  and its sub elements can be accessed as its attribute.
+    pv = com.sun.star.beans.PropertyValue()
+  When enum or constants is requested, it can be imported as modules. 
+  And its value elements are accessible as module attributes. 
+    import com.sun.star.awt.PosSize as PosSize
+    print(PosSize.POS)
+  
+  These module attributes are not loaded at import time of the module. 
+  But once a value is requested, it would be normal attribute of the module. 
+  No more __getattr__ hook is not called to get the value.
+

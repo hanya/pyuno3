@@ -153,7 +153,7 @@ class PyUNOTestFunctions(unittest.TestCase):
         desired = "file:///home/foo/bar/"
         result = uno.absolutize(url, relative_path)
         self.assertEqual(result, desired)
-    """
+    
     def test_hasModule(self):
         import pyuno
         self.assertTrue(pyuno.hasModule("com"))
@@ -161,7 +161,26 @@ class PyUNOTestFunctions(unittest.TestCase):
         self.assertTrue(pyuno.hasModule("com.sun.star.awt.FontWeight"))
         self.assertTrue(pyuno.hasModule("com.sun.star.awt.FontSlant"))
         self.assertFalse(pyuno.hasModule("foo"))
-    """
+    
+    def test_getModuleElementNames(self):
+        self.assertTrue("sun" in uno.getModuleElementNames("com"))
+        self.assertTrue("beans" in uno.getModuleElementNames("com.sun.star"))
+        _all = set(uno.getModuleElementNames("com.sun.star.beans"))
+        self.assertTrue("XExactName" in _all)
+        self.assertTrue("NamedValue" in _all)
+        self.assertTrue("UnknownPropertyException" in _all)
+        self.assertTrue("PropertyState" in _all)
+        self.assertTrue("PropertyAttribute" in _all)
+        
+        self.assertFalse("Introspection" in _all)
+        self.assertFalse("Optional" in _all)
+        self.assertFalse("PropertyValues" in _all)
+        
+        _all = set(uno.getModuleElementNames("com.sun.star.awt.FontSlant"))
+        self.assertTrue("ITALIC" in _all)
+        _all = set(uno.getModuleElementNames("com.sun.star.awt.FontWeight"))
+        self.assertTrue("BOLD" in _all)
+    
     # classes defined in uno module
     
     def test_Enum(self):
@@ -240,11 +259,47 @@ class PyUNOTestFunctions(unittest.TestCase):
     def test_import_constant(self):
         from com.sun.star.awt.FontWeight import BLACK
         self.assertEqual(BLACK, 200.0)
+        import com.sun.star.awt.PosSize as PosSize
+        self.assertEqual(PosSize.X, 1)
     
     def test_import_typeOf(self):
         from com.sun.star.container import typeOfXNameAccess
         t = uno.getTypeByName("com.sun.star.container.XNameAccess")
         self.assertEqual(typeOfXNameAccess, t)
+    
+    def test_import_module(self):
+        import com.sun.star
+        self.assertIsInstance(com, uno.UNOModule)
+        self.assertIsInstance(com.sun, uno.UNOModule)
+        self.assertIsInstance(com.sun.star, uno.UNOModule)
+    
+    def test_import_unknown_module(self):
+        def _import():
+            import com.foo
+        
+        self.assertRaises(ImportError, _import)
+    
+    def test_import_unknown_atrribute(self):
+        def _import():
+            from com.sun.star.awt.FontSlant import FOO
+        
+        self.assertRaises(ImportError, _import)
+    
+    def test_import_imported_element(self):
+        from com.sun.star.awt import FontSlant
+        self.assertEqual(FontSlant.ITALIC, 
+            uno.Enum("com.sun.star.awt.FontSlant", "ITALIC"))
+        self.assertEqual(FontSlant.OBLIQUE, 
+            uno.Enum("com.sun.star.awt.FontSlant", "OBLIQUE"))
+        
+        from com.sun.star.awt import XActionListener
+        import com.sun.star.awt
+        self.assertTrue(hasattr(com.sun.star.awt, "XActionListener"))
+        # this is valid because hasattr calls __getattr__
+        self.assertTrue(hasattr(com.sun.star.awt, "XButton"))
+    
+    #def test_import_all(self):
+    #    pass
     
     # type class test
     
@@ -440,6 +495,14 @@ class PyUNOTestFunctions(unittest.TestCase):
 if __name__ == "__main__":
     if sys.version_info[0] == 3:
         unittest.main()
+        """
+        print("import all")
+        print(locals())
+        try:
+            from com.sun.star.beans import *
+        except Exception as e:
+            print(e)
+        print(locals())"""
     else:
         print("This unittest can execute only on Python3.")
         sys.exit(1)

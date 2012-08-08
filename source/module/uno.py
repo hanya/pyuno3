@@ -21,13 +21,14 @@
 import sys
 
 import pyuno
-import builtins
 import socket # since on Windows sal3.dll no longer calls WSAStartup
+import importlib.abc
+import types
 
 # all functions and variables starting with a underscore (_) must be considered private
 # and can be changed at any time. Don't use them
 _g_ctx = pyuno.getComponentContext( )
-_g_delegatee = builtins.__dict__["__import__"]
+
 
 def getComponentContext():
     """ returns the UNO component context, that was used to initialize the python runtime.
@@ -99,6 +100,24 @@ def setCurrentContext( newContext ):
     see http://udk.openoffice.org/common/man/concept/uno_contexts.html#current_context
     """
     return pyuno.setCurrentContext( newContext )
+
+
+def hasModule(name):
+    """ Check UNO module is there by its name. 
+    
+        Valid modules are module, constants and enum.
+    """
+    return pyuno.hasModule(name)
+
+
+def getModuleElementNames(name):
+    """ Get list of sub element names by name.
+    
+        Valid elements are module, interface, struct without template, 
+        exception, enum and constants. And also list of names in enum and 
+        constants can be taken.
+    """
+    return pyuno.getModuleElementNames(name)
 
 
 class Enum:
@@ -215,53 +234,6 @@ def invoke( object, methodname, argTuple ):
 #---------------------------------------------------------------------------------------
 # don't use any functions beyond this point, private section, likely to change
 #---------------------------------------------------------------------------------------
-#def _uno_import( name, globals={}, locals={}, fromlist=[], level=-1 ):
-def _uno_import( name, *optargs, **kwargs ):
-    try:
-#       print "optargs = " + repr(optargs)
-        return _g_delegatee( name, *optargs, **kwargs )
-    except ImportError:
-        # process optargs
-        globals, locals, fromlist = list(optargs)[:3] + [kwargs.get('globals',{}), kwargs.get('locals',{}), kwargs.get('fromlist',[])][len(optargs):]
-        if not fromlist:
-            raise
-    modnames = name.split( "." )
-    mod = None
-    d = sys.modules
-    for x in modnames:
-        if x in d:
-            mod = d[x]
-        else:
-            mod = pyuno.__class__(x)  # How to create a module ??
-        d = mod.__dict__
-
-    RuntimeException = pyuno.getClass( "com.sun.star.uno.RuntimeException" )
-    for x in fromlist:
-        if x not in d:
-            if x.startswith( "typeOf" ):
-                try:
-                    d[x] = pyuno.getTypeByName( name + "." + x[6:len(x)] )
-                except RuntimeException as e:
-                    raise ImportError( "type " + name + "." + x[6:len(x)] +" is unknown" )
-            else:
-                try:
-                    # check for structs, exceptions or interfaces
-                    d[x] = pyuno.getClass( name + "." + x )
-                except RuntimeException as e:
-                    # check for enums
-                    try:
-                        d[x] = Enum( name , x )
-                    except RuntimeException as e2:
-                        # check for constants
-                        try:
-                            d[x] = getConstantByName( name + "." + x )
-                        except RuntimeException as e3:
-                            # no known uno type !
-                            raise ImportError( "type "+ name + "." +x + " is unknown" )
-    return mod
-
-# hook into the __import__ chain
-builtins.__dict__["__import__"] = _uno_import
 
 # private function, don't use
 def _impl_extractName(name):
@@ -281,11 +253,11 @@ def _uno_struct__init__(self,*args):
 
 # private, referenced from the pyuno shared library
 def _uno_struct__getattr__(self,name):
-    return builtins.getattr(self.__dict__["value"],name)
+    return getattr(self.__dict__["value"],name)
 
 # private, referenced from the pyuno shared library
 def _uno_struct__setattr__(self,name,value):
-    return builtins.setattr(self.__dict__["value"],name,value)
+    return setattr(self.__dict__["value"],name,value)
 
 # private, referenced from the pyuno shared library
 def _uno_struct__repr__(self):
@@ -323,3 +295,86 @@ def _uno_extract_printable_stacktrace( trace ):
     else:
         ret = "Couldn't import traceback module"
     return ret
+
+
+class UNOModule(types.ModuleType):
+    """ Extended module class for UNO based modules. 
+    
+        Real value is not taken from pyuno until first request. 
+        After first request of the value, it is kept as an attribute.
+    """
+    
+    def __init__(self, fullname, loader):
+        super().__init__(fullname)
+        self.__file__ = "<" + fullname + ">"
+        self.__loader__ = loader
+        self.__path__ = fullname
+        self.__package__ = ""
+        self.__initializing__ = False
+    
+    def __getattr__(self, elt):
+        value = None
+        
+        RuntimeException = pyuno.getClass("com.sun.star.uno.RuntimeException")
+        try:
+            value = pyuno.getClass(self.__path__ + "." + elt)
+        except RuntimeException:
+            try:
+                value = Enum(self.__path__, elt)
+            except RuntimeException:
+                try:
+                    value = pyuno.getConstantByName(self.__path__ + "." + elt)
+                except RuntimeException:
+                    if elt.startswith("typeOf"):
+                        try:
+                            value = pyuno.getTypeByName(self.__path__ + "." + elt[6:])
+                        except RuntimeException:
+                            raise AttributeError(
+                                "type {}.{} is unknown".format(self.__path__, elt))
+                    elif elt == "__all__":
+                        try:
+                            module_names = pyuno.getModuleElementNames(self.__path__)
+                            self.__all__ = module_names
+                            return module_names
+                        except RuntimeException:
+                            raise AttributeError("__all__")
+                    else:
+                        raise AttributeError(
+                            "type {}.{} is unknown".format(self.__path__, elt))
+        setattr(self, elt, value)
+        return value
+
+
+class UNOModuleLoader(importlib.abc.Loader):
+    """ UNO module loader. 
+    
+        Creates new customized module for UNO if not yet loaded.
+    """
+    
+    def load_module(self, fullname):
+        mod = None
+        if fullname in sys.modules:
+            return sys.modules[fullname]
+        else:
+            mod = UNOModule(fullname, self)
+        sys.modules.setdefault(fullname, mod)
+        return mod
+
+
+class UNOModuleFinder(importlib.abc.Finder):
+    """ UNO module finder. 
+    
+        Generate module loader for UNO module. Valid module names are 
+        one of module, enum and constants in IDL definitions.
+    """
+    
+    LOADER = UNOModuleLoader()
+    
+    def find_module(self, fullname, path=None):
+        if pyuno.hasModule(fullname):
+            return self.__class__.LOADER
+        return None
+
+
+sys.meta_path.append(UNOModuleFinder())
+

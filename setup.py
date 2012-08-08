@@ -59,6 +59,10 @@ types = [
     "com.sun.star.reflection.XIdlReflection", 
     "com.sun.star.reflection.XIdlClass", 
     "com.sun.star.reflection.XTypeDescription", 
+    "com.sun.star.reflection.XEnumTypeDescription", 
+    "com.sun.star.reflection.XConstantsTypeDescription", 
+    "com.sun.star.reflection.XModuleTypeDescription", 
+    "com.sun.star.reflection.XStructTypeDescription", 
     "com.sun.star.registry.InvalidRegistryException", 
     "com.sun.star.beans.XIntrospection", 
     "com.sun.star.script.XTypeConverter", 
@@ -71,7 +75,6 @@ types = [
     "com.sun.star.uno.XAggregation", 
     "com.sun.star.lang.XMultiServiceFactory", 
     "com.sun.star.uno.XCurrentContext", 
-    
     
 ]
 
