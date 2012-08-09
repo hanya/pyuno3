@@ -166,8 +166,6 @@ PyRef getByteSequenceClass( const Runtime & );
 PyRef getPyUnoClass();
 PyRef getClass( const rtl::OUString & name , const Runtime & runtime );
 PyRef getAnyClass( const Runtime &);
-PyRef getUNOException( const Runtime &);
-PyRef getUNOStruct( const Runtime &);
 PyObject *PyUNO_invoke( PyObject *object, const char *name , PyObject *args );
 
 com::sun::star::uno::Any PyEnum2Enum( PyObject *obj )
