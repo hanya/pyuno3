@@ -139,6 +139,16 @@ PyRef getAnyClass( const Runtime & r )
     return getClass( r , "Any" );
 }
 
+PyRef getUNOStruct( const Runtime & r )
+{
+    return getClass( r, "UNOStruct" );
+}
+
+PyRef getUNOException( const Runtime & r )
+{
+    return getClass( r, "UNOException" );
+}
+
 
 sal_Unicode PyChar2Unicode( PyObject *obj ) throw ( RuntimeException )
 {

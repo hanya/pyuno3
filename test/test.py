@@ -246,10 +246,20 @@ class PyUNOTestFunctions(unittest.TestCase):
     
     def test_import_struct(self):
         from com.sun.star.awt import Rectangle
-        
+        r = Rectangle()
+        self.assertIsInstance(r, Rectangle)
+        self.assertIsInstance(r, uno.UNOStruct)
+        self.assertEqual(Rectangle.typeName, "com.sun.star.awt.Rectangle")
+        self.assertEqual(Rectangle.__pyunostruct__, "com.sun.star.awt.Rectangle")
     
     def test_import_exception(self):
         from com.sun.star.uno import RuntimeException
+        e = RuntimeException()
+        self.assertIsInstance(e, RuntimeException)
+        self.assertIsInstance(e, uno.UNOException)
+        self.assertIsInstance(e, Exception)
+        self.assertEqual(RuntimeException.typeName, "com.sun.star.uno.RuntimeException")
+        self.assertEqual(RuntimeException.__pyunostruct__, "com.sun.star.uno.RuntimeException")
     
     def test_import_enum(self):
         from com.sun.star.awt.FontSlant import OBLIQUE
