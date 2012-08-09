@@ -136,6 +136,12 @@ class Enum:
         if not isinstance(that, Enum):
             return False
         return (self.typeName == that.typeName) and (self.value == that.value)
+    
+    def __ne__(self, that):
+        if not isinstance(that, Enum):
+            return True
+        return self.typeName != that.typeName or self.value != that.value
+
 
 class Type:
     "Represents a UNO type, use an instance of this class to explicitly pass a boolean to UNO"
@@ -152,7 +158,12 @@ class Type:
         if not isinstance(that, Type):
             return False
         return self.typeClass == that.typeClass and self.typeName == that.typeName
-
+    
+    def __ne__(self, that):
+        if not isinstance(that, Type):
+            return True
+        return self.typeClass != that.typeClass or self.typeName != that.typeName
+    
     def __hash__(self):
         return self.typeName.__hash__()
 
@@ -176,6 +187,9 @@ class Char:
         if isinstance(that, Char):
             return self.value == that.value
         return False
+    
+    def __ne__(self, that):
+        return not self.__eq__(that)
 
 
 class ByteSequence:
@@ -197,7 +211,10 @@ class ByteSequence:
         if isinstance(that, str):
             return self.value == that
         return False
-
+    
+    def __ne__(self, that):
+        return not self.__eq__(that)
+    
     def __len__(self):
         return len(self.value)
 
@@ -235,38 +252,6 @@ def invoke( object, methodname, argTuple ):
 # don't use any functions beyond this point, private section, likely to change
 #---------------------------------------------------------------------------------------
 
-# private, referenced from the pyuno shared library
-def _uno_struct__init__(self,*args):
-    if len(args) == 1 and hasattr(args[0], "__class__") and args[0].__class__ == self.__class__ :
-        self.__dict__["value"] = args[0]
-    else:
-        self.__dict__["value"] = pyuno._createUnoStructHelper(self.__class__.__pyunostruct__,args)
-
-# private, referenced from the pyuno shared library
-def _uno_struct__getattr__(self,name):
-    return getattr(self.__dict__["value"],name)
-
-# private, referenced from the pyuno shared library
-def _uno_struct__setattr__(self,name,value):
-    return setattr(self.__dict__["value"],name,value)
-
-# private, referenced from the pyuno shared library
-def _uno_struct__repr__(self):
-    return repr(self.__dict__["value"])
-
-def _uno_struct__str__(self):
-    return str(self.__dict__["value"])
-
-# private, referenced from the pyuno shared library
-def _uno_struct__eq__(self,cmp):
-    if hasattr(cmp,"value"):
-        return self.__dict__["value"] == cmp.__dict__["value"]
-    return False
-
-def _uno_struct__dir__(self):
-    return dir(self.__dict__["value"]) + list(self.__dict__.keys()) + \
-                list(self.__class__.__dict__.keys())
-
 # referenced from pyuno shared lib and pythonscript.py
 def _uno_extract_printable_stacktrace( trace ):
     mod = None
@@ -286,6 +271,47 @@ def _uno_extract_printable_stacktrace( trace ):
     else:
         ret = "Couldn't import traceback module"
     return ret
+
+
+class UNOBaseStruct:
+    """ Base class of UNO structs and exceptions. """
+    
+    def __init__(self, *args, **kwds):
+        if len(args) == 1 and isinstance(args[0], self.__class__):
+            value = args[0]
+        else:
+            value = pyuno._createUnoStructHelper(
+                        self.__class__.__pyunostruct__, args)
+        self.__dict__["value"] = value
+    
+    def __getattr__(self, name):
+        return getattr(self.__dict__["value"], name)
+    
+    def __setattr__(self, name, value):
+        return setattr(self.__dict__["value"], name, value)
+    
+    def __repr__(self):
+        return repr(self.__dict__["value"])
+    
+    def __str__(self):
+        return str(self.__dict__["value"])
+    
+    def __dir__(self):
+        return dir(self.__dict__["value"]) + list(self.__dict__.keys()) + \
+                list(self.__class__.__dict__.keys())
+    
+    def __eq__(self, other):
+        if hasattr(other, "value"):
+            return self.__dict__["value"] == other.__dict__["value"]
+        return False
+
+
+class UNOException(Exception, UNOBaseStruct):
+    """ Parent class of UNO exceptions. """
+
+
+class UNOStruct(UNOBaseStruct):
+    """ Parent class of UNO structs. """
 
 
 class UNOModule(types.ModuleType):
