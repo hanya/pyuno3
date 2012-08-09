@@ -235,15 +235,6 @@ def invoke( object, methodname, argTuple ):
 # don't use any functions beyond this point, private section, likely to change
 #---------------------------------------------------------------------------------------
 
-# private function, don't use
-def _impl_extractName(name):
-    r = list(range(len(name)-1,0,-1))
-    for i in r:
-        if name[i] == ".":
-            name = name[i+1:len(name)]
-            break
-    return name
-
 # private, referenced from the pyuno shared library
 def _uno_struct__init__(self,*args):
     if len(args) == 1 and hasattr(args[0], "__class__") and args[0].__class__ == self.__class__ :
