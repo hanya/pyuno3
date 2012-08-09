@@ -60,3 +60,14 @@ Replaced import hook
   But once a value is requested, it would be normal attribute of the module. 
   No more __getattr__ hook is not called to get the value.
 
+Base class for structs and exceptions
+  UNO structs and exceptions are defined as class wraps pyuno instance 
+  of UNO value. They did not have any parent class. 
+  UNOStruct class is introduced for parent class of all UNO structs. 
+  UNOException class is also introduced for parent class of all UNO exceptions. 
+  UNOException class inherits Exception class of Python, therefore 
+  it is also an exception of Python. 
+  These classes generated at runtime still have typeName and __pyunostruct__ 
+  class variables. But __pyunointerface__ class variable has been removed 
+  from struct and exception class, because of it is used only on 
+  interface class.
