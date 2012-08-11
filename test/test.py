@@ -94,9 +94,9 @@ class PyUNOTestFunctions(unittest.TestCase):
         
         def test(type_name, type_class):
             t = uno.getTypeByName(type_name)
-            self.assertIsInstance(t, uno.Type)
+            self.assertTrue(isinstance(t, uno.Type))
             self.assertEqual(t.typeName, type_name)
-            self.assertIsInstance(t.typeClass, uno.Enum)
+            self.assertTrue(isinstance(t.typeClass, uno.Enum))
             self.assertEqual(t.typeClass.value, type_class)
         
         test("long", "LONG")
@@ -106,7 +106,7 @@ class PyUNOTestFunctions(unittest.TestCase):
     def test_createUnoStruct(self):
         from com.sun.star.awt import Rectangle
         rect1 = uno.createUnoStruct("com.sun.star.awt.Rectangle")
-        self.assertIsInstance(rect1, Rectangle)
+        self.assertTrue(isinstance(rect1, Rectangle))
         rect2 = uno.createUnoStruct("com.sun.star.awt.Rectangle", 100, 200, 50, 1)
         self.assertEqual(rect2.X, 100)
         rect3 = uno.createUnoStruct("com.sun.star.awt.Rectangle", rect2)
@@ -127,9 +127,9 @@ class PyUNOTestFunctions(unittest.TestCase):
     
     def test_generateUuid(self):
         v = uno.generateUuid()
-        self.assertIsInstance(v, uno.ByteSequence)
+        self.assertTrue(isinstance(v, uno.ByteSequence))
         self.assertEqual(len(v), 16)
-        self.assertIsInstance(v.value, bytes)
+        self.assertTrue(isinstance(v.value, bytes))
         
     
     def test_systemPathToFileUrl(self):
@@ -247,17 +247,17 @@ class PyUNOTestFunctions(unittest.TestCase):
     def test_import_struct(self):
         from com.sun.star.awt import Rectangle
         r = Rectangle()
-        self.assertIsInstance(r, Rectangle)
-        self.assertIsInstance(r, uno.UNOStruct)
+        self.assertTrue(isinstance(r, Rectangle))
+        self.assertTrue(isinstance(r, uno.UNOStruct))
         self.assertEqual(Rectangle.typeName, "com.sun.star.awt.Rectangle")
         self.assertEqual(Rectangle.__pyunostruct__, "com.sun.star.awt.Rectangle")
     
     def test_import_exception(self):
         from com.sun.star.uno import RuntimeException
         e = RuntimeException()
-        self.assertIsInstance(e, RuntimeException)
-        self.assertIsInstance(e, uno.UNOException)
-        self.assertIsInstance(e, Exception)
+        self.assertTrue(isinstance(e, RuntimeException))
+        self.assertTrue(isinstance(e, uno.UNOException))
+        self.assertTrue(isinstance(e, Exception))
         self.assertEqual(RuntimeException.typeName, "com.sun.star.uno.RuntimeException")
         self.assertEqual(RuntimeException.__pyunostruct__, "com.sun.star.uno.RuntimeException")
     
@@ -279,9 +279,9 @@ class PyUNOTestFunctions(unittest.TestCase):
     
     def test_import_module(self):
         import com.sun.star
-        self.assertIsInstance(com, uno.UNOModule)
-        self.assertIsInstance(com.sun, uno.UNOModule)
-        self.assertIsInstance(com.sun.star, uno.UNOModule)
+        self.assertTrue(isinstance(com, uno.UNOModule))
+        self.assertTrue(isinstance(com.sun, uno.UNOModule))
+        self.assertTrue(isinstance(com.sun.star, uno.UNOModule))
     
     def test_import_unknown_module(self):
         def _import():
@@ -367,13 +367,11 @@ class PyUNOTestFunctions(unittest.TestCase):
         vt.setHyper(-v)
         self.assertEqual(vt.getHyper(), -v)
     
-    def test_float(self):
-        """
-        vt = self.create_value_test(FloatValue=100.111)
-        self.assertEqual(vt.getFloat(), 100.111)
-        vt.setFloat(-100.011)
-        self.assertEqual(vt.getFloat(), -100.011)
-        """
+    #def test_float(self):
+        #vt = self.create_value_test(FloatValue=100.111)
+        #self.assertEqual(vt.getFloat(), 100.111)
+        #vt.setFloat(-100.011)
+        #self.assertEqual(vt.getFloat(), -100.011)
         # error on conversion between double and float?
     
     def test_double(self):
@@ -500,19 +498,11 @@ class PyUNOTestFunctions(unittest.TestCase):
         d.getControl("CommandButton1").addActionListener(l)
         d.execute()
         d.dispose()
-    
+
     
 if __name__ == "__main__":
     if sys.version_info[0] == 3:
         unittest.main()
-        """
-        print("import all")
-        print(locals())
-        try:
-            from com.sun.star.beans import *
-        except Exception as e:
-            print(e)
-        print(locals())"""
     else:
         print("This unittest can execute only on Python3.")
         sys.exit(1)
