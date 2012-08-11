@@ -24,6 +24,7 @@ import pyuno
 import socket # since on Windows sal3.dll no longer calls WSAStartup
 import importlib.abc
 import types
+import traceback
 
 # all functions and variables starting with a underscore (_) must be considered private
 # and can be changed at any time. Don't use them
@@ -235,22 +236,17 @@ def invoke( object, methodname, argTuple ):
 #---------------------------------------------------------------------------------------
 
 # referenced from pyuno shared lib and pythonscript.py
-def _uno_extract_printable_stacktrace( trace ):
-    mod = None
-    try:
-        mod = __import__("traceback")
-    except ImportError as e:
-        pass
+def _uno_extract_printable_stacktrace(trace):
     ret = ""
-    if mod:
-        lst = mod.extract_tb( trace )
+    try:
+        lst = traceback.extract_tb(trace)
         max = len(lst)
         for j in range(max):
             i = lst[max-j-1]
-            ret = ret + "  " + str(i[0]) + ":" + \
+            ret = "  " + str(i[0]) + ":" + \
                   str(i[1]) + " in function " + \
                   str(i[2])  + "() [" + str(i[3]) + "]\n"
-    else:
+    except:
         ret = "Couldn't import traceback module"
     return ret
 
