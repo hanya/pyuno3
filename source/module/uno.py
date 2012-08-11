@@ -180,13 +180,12 @@ class Char:
 
 class ByteSequence:
     def __init__(self, value):
-        #if isinstance(value, str):
         if isinstance(value, bytes) or isinstance(value, bytearray):
             self.value = value
         elif isinstance(value, ByteSequence):
             self.value = value.value
         else:
-            raise TypeError("expected string or bytesequence")
+            raise TypeError("expected bytes, bytearray or bytesequence")
 
     def __repr__(self):
         return "<ByteSequence instance '%s'>" % (self.value, )
@@ -194,7 +193,7 @@ class ByteSequence:
     def __eq__(self, that):
         if isinstance( that, ByteSequence):
             return self.value == that.value
-        if isinstance(that, str):
+        elif isinstance(that, bytes) or isinstance(that, bytearray):
             return self.value == that
         return False
 
@@ -208,11 +207,11 @@ class ByteSequence:
         return self.value.__iter__()
 
     def __add__( self , b ):
-        if isinstance( b, str ):
+        if isinstance( b, bytes ) or isinstance(b, bytearray):
             return ByteSequence( self.value + b )
         elif isinstance( b, ByteSequence ):
             return ByteSequence( self.value + b.value )
-        raise TypeError( "expected string or ByteSequence as operand" )
+        raise TypeError( "expected byte, bytearray or ByteSequence as operand" )
 
     def __hash__( self ):
         return self.value.hash()

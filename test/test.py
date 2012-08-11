@@ -230,7 +230,21 @@ class PyUNOTestFunctions(unittest.TestCase):
         self.assertNotEqual(c, uno.Char("v"))
     
     def test_ByteSequence(self):
-        pass
+        a = b"abcdef"
+        b = b"xyz"
+        
+        bsa = uno.ByteSequence(a)
+        bsb = uno.ByteSequence(b)
+        self.assertEqual(bsa.value, a)
+        self.assertEqual(bsb.value, b)
+        self.assertEqual(bsa, a)
+        self.assertEqual(bsa, bytearray(a))
+        self.assertEqual(len(bsa), len(a))
+        self.assertEqual(bsa[1], a[1])
+        c = a + b
+        bsc = uno.ByteSequence(c)
+        self.assertEqual(bsc, bsa + bsb)
+        self.assertEqual(bsc, c)
     
     def test_Any(self):
         vt = self.create_value_test()
